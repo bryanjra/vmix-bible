@@ -1,0 +1,361 @@
+#!/usr/bin/env python3
+"""verse - Look up Reina-Valera 1960 (RVR1960) verses from a local SQLite DB.
+
+Usage:
+  verse "Juan 3:16"
+  verse "Juan 3:16-18"
+  verse "Salmos 23"                    # whole chapter
+  verse "Juan 3:16" "Romanos 8:28"     # multiple refs (separate args)
+  verse "Juan 3:16; Romanos 8:28"      # multiple refs (semicolon-separated)
+  verse search "fe sin obras"          # full-text search
+  verse --json "Juan 3:16"             # machine-readable output
+  verse --plain "Juan 3:16"            # text only, no reference header
+
+vMix projection (pushes to the local presentation engine at PRESENT_URL):
+  verse --present "Mateo 5:3-12"       # set the playlist, show verse 0
+  verse --next                         # advance one verse
+  verse --prev                         # back one verse
+  verse --goto 4                       # jump to 0-based index 4
+  verse --clear                        # blank the projection
+
+Env: PRESENT_URL (default http://127.0.0.1:8080). Exit code: 0 ok, 1 no match, 2 parse error.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sqlite3
+import sys
+import unicodedata
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+DB_PATH = Path(__file__).resolve().parent.parent / "bible-rvr1960.db"
+PRESENT_URL = os.environ.get("PRESENT_URL", "http://127.0.0.1:8080").rstrip("/")
+
+
+def normalize(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = s.lower().strip()
+    s = re.sub(r"\s+", " ", s)
+    s = s.replace(".", "")
+    return s
+
+
+# Match: <book> <chap>[:<v>[-<v2>]]
+# Book may be "1 Juan", "Primera de Juan", "Gn", etc. Capture chapter/verse range at the tail.
+REF_RE = re.compile(
+    r"""^\s*
+        (?P<book>.+?)\s+
+        (?P<chap>\d+)
+        (?:[:\.\s]\s*(?P<v1>\d+)(?:\s*[-–]\s*(?P<v2>\d+))?)?
+        \s*$
+    """,
+    re.VERBOSE,
+)
+
+
+class ParseError(ValueError):
+    pass
+
+
+def resolve_book(conn: sqlite3.Connection, raw: str) -> tuple[int, str]:
+    norm = normalize(raw)
+    row = conn.execute(
+        "SELECT b.id, b.name FROM book_aliases a JOIN books b ON b.id=a.book_id WHERE a.alias=?",
+        (norm,),
+    ).fetchone()
+    if row:
+        return row
+    # Fallback: try a startswith match across aliases for tolerance to typos.
+    rows = conn.execute(
+        "SELECT b.id, b.name FROM book_aliases a JOIN books b ON b.id=a.book_id WHERE a.alias LIKE ? ORDER BY length(a.alias) LIMIT 2",
+        (norm + "%",),
+    ).fetchall()
+    if len(rows) == 1:
+        return rows[0]
+    raise ParseError(f"Unknown book: {raw!r}")
+
+
+def parse_reference(ref: str) -> tuple[str, int, int | None, int | None]:
+    m = REF_RE.match(ref)
+    if not m:
+        raise ParseError(f"Could not parse reference: {ref!r}")
+    book = m.group("book")
+    chap = int(m.group("chap"))
+    v1 = int(m.group("v1")) if m.group("v1") else None
+    v2 = int(m.group("v2")) if m.group("v2") else None
+    if v2 is not None and v1 is not None and v2 < v1:
+        raise ParseError(f"Invalid range (end < start): {ref!r}")
+    return book, chap, v1, v2
+
+
+def lookup(conn: sqlite3.Connection, ref: str) -> list[dict]:
+    book_raw, chap, v1, v2 = parse_reference(ref)
+    book_id, book_name = resolve_book(conn, book_raw)
+    if v1 is None:
+        # Whole chapter
+        rows = conn.execute(
+            "SELECT chapter, verse, text FROM verses WHERE book_id=? AND chapter=? ORDER BY verse",
+            (book_id, chap),
+        ).fetchall()
+    elif v2 is None:
+        rows = conn.execute(
+            "SELECT chapter, verse, text FROM verses WHERE book_id=? AND chapter=? AND verse=?",
+            (book_id, chap, v1),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT chapter, verse, text FROM verses WHERE book_id=? AND chapter=? AND verse BETWEEN ? AND ? ORDER BY verse",
+            (book_id, chap, v1, v2),
+        ).fetchall()
+    return [
+        {"book": book_name, "chapter": r[0], "verse": r[1], "text": r[2]}
+        for r in rows
+    ]
+
+
+def search(conn: sqlite3.Connection, query: str, limit: int = 25) -> list[dict]:
+    # FTS5 MATCH. Quote phrase to avoid operator surprises but keep tokens.
+    fts_query = '"' + query.replace('"', '""') + '"'
+    rows = conn.execute(
+        """
+        SELECT b.name, v.chapter, v.verse, v.text
+        FROM verses_fts f
+        JOIN verses v ON v.id = f.rowid
+        JOIN books b ON b.id = v.book_id
+        WHERE verses_fts MATCH ?
+        ORDER BY v.book_id, v.chapter, v.verse
+        LIMIT ?
+        """,
+        (fts_query, limit),
+    ).fetchall()
+    return [
+        {"book": r[0], "chapter": r[1], "verse": r[2], "text": r[3]}
+        for r in rows
+    ]
+
+
+def format_results(results: list[dict], plain: bool) -> str:
+    if not results:
+        return ""
+    # Group consecutive verses from the same book+chapter for a clean header.
+    out: list[str] = []
+    cur_key = None
+    buf: list[dict] = []
+
+    def flush():
+        if not buf:
+            return
+        b, ch = buf[0]["book"], buf[0]["chapter"]
+        if not plain:
+            if len(buf) == 1:
+                header = f"{b} {ch}:{buf[0]['verse']}"
+            else:
+                vs = [r["verse"] for r in buf]
+                contiguous = vs == list(range(vs[0], vs[-1] + 1))
+                if contiguous:
+                    header = f"{b} {ch}:{vs[0]}-{vs[-1]}"
+                else:
+                    header = f"{b} {ch}:{','.join(str(v) for v in vs)}"
+            out.append(header)
+        for r in buf:
+            if plain:
+                out.append(r["text"])
+            else:
+                out.append(f"  {r['verse']}. {r['text']}")
+        out.append("")
+
+    for r in results:
+        key = (r["book"], r["chapter"])
+        if key != cur_key:
+            flush()
+            buf = []
+            cur_key = key
+        buf.append(r)
+    flush()
+    return "\n".join(out).rstrip()
+
+
+def split_refs(args: list[str]) -> list[str]:
+    """Allow refs separated by ; or , in a single argument too."""
+    out: list[str] = []
+    for a in args:
+        for part in re.split(r"\s*[;]\s*", a):
+            part = part.strip()
+            if part:
+                out.append(part)
+    return out
+
+
+def _post(path: str, body: dict | None = None) -> tuple[int, dict | None]:
+    """POST JSON to the vMix engine. Returns (status, json-or-None)."""
+    data = json.dumps(body or {}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{PRESENT_URL}{path}",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return resp.status, json.loads(resp.read().decode("utf-8") or "null")
+    except urllib.error.URLError as e:
+        print(
+            f"error: vMix engine unreachable at {PRESENT_URL} ({e.reason}).\n"
+            f"       start it with: {Path(__file__).resolve().parent / 'serve'}",
+            file=sys.stderr,
+        )
+        return 0, None
+    except Exception as e:
+        print(f"error: {PRESENT_URL}{path}: {e}", file=sys.stderr)
+        return 0, None
+
+
+def build_reference_label(results: list[dict], fallback: str) -> str:
+    """Group consecutive verses from the same book+chapter into clean labels.
+
+    e.g. [Mateo 5:3..12] -> 'Mateo 5:3-12'
+         [Juan 3:16, Romanos 8:28] -> 'Juan 3:16; Romanos 8:28'
+    """
+    if not results:
+        return fallback
+    groups: list[list[dict]] = []
+    cur_key = None
+    buf: list[dict] = []
+    for r in results:
+        key = (r["book"], r["chapter"])
+        if key != cur_key:
+            if buf:
+                groups.append(buf)
+            buf = [r]
+            cur_key = key
+        else:
+            buf.append(r)
+    if buf:
+        groups.append(buf)
+    parts: list[str] = []
+    for g in groups:
+        b, ch = g[0]["book"], g[0]["chapter"]
+        vs = [r["verse"] for r in g]
+        if len(vs) == 1:
+            parts.append(f"{b} {ch}:{vs[0]}")
+        elif vs == list(range(vs[0], vs[-1] + 1)):
+            parts.append(f"{b} {ch}:{vs[0]}-{vs[-1]}")
+        else:
+            parts.append(f"{b} {ch}:{','.join(str(v) for v in vs)}")
+    return "; ".join(parts) or fallback
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(
+        prog="verse",
+        description="RVR1960 Bible lookup / search / vMix projection.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--plain", action="store_true", help="Plain text, no headers")
+    p.add_argument("--limit", type=int, default=25, help="Max search results (default 25)")
+    p.add_argument("--present", action="store_true",
+                   help="Push the result as a playlist to the vMix engine and show verse 0")
+    nav = p.add_mutually_exclusive_group()
+    nav.add_argument("--next", dest="nav_next", action="store_true",
+                     help="Advance one verse on the active projection")
+    nav.add_argument("--prev", dest="nav_prev", action="store_true",
+                     help="Back one verse on the active projection")
+    nav.add_argument("--goto", type=int, metavar="N",
+                     help="Jump to 0-based index N on the active projection")
+    nav.add_argument("--clear", dest="nav_clear", action="store_true",
+                     help="Blank the projection")
+    p.add_argument("args", nargs="*",
+                   help='References, or "search <query>" for full-text search')
+    ns = p.parse_args()
+
+    # Pure projection-control verbs: no lookup, no DB.
+    if ns.nav_next or ns.nav_prev or ns.nav_clear or ns.goto is not None:
+        if ns.args:
+            print("error: --next/--prev/--goto/--clear take no references", file=sys.stderr)
+            return 2
+        if ns.nav_next:
+            status, body = _post("/next")
+        elif ns.nav_prev:
+            status, body = _post("/prev")
+        elif ns.nav_clear:
+            status, body = _post("/clear")
+        else:
+            status, body = _post(f"/goto/{ns.goto}")
+        if status == 0:
+            return 2
+        if ns.json:
+            print(json.dumps(body, ensure_ascii=False))
+        elif body and body.get("current"):
+            c = body["current"]
+            print(f"{c['book']} {c['chapter']}:{c['verse']}  ({body['index']+1}/{body['total']})")
+            print(c["text"])
+        elif ns.nav_clear:
+            print("cleared")
+        else:
+            print("(no verse)")
+        return 0
+
+    # From here on we need refs/search.
+    if not ns.args:
+        p.error("nothing to do — pass a reference, 'search <query>', or one of --next/--prev/--goto/--clear")
+
+    if not DB_PATH.exists():
+        print(f"error: db not found at {DB_PATH}; run build_bible_db.py first",
+              file=sys.stderr)
+        return 2
+    conn = sqlite3.connect(DB_PATH)
+
+    mode = "lookup"
+    if ns.args[0].lower() in ("search", "buscar", "--search", "-s"):
+        mode = "search"
+        query = " ".join(ns.args[1:]).strip()
+        if not query:
+            print("error: search requires a query", file=sys.stderr)
+            return 2
+        try:
+            results = search(conn, query, limit=ns.limit)
+        except sqlite3.OperationalError as e:
+            print(f"error: search failed: {e}", file=sys.stderr)
+            return 2
+        reference_label = f"search: {query}"
+    else:
+        refs = split_refs(ns.args)
+        results = []
+        for ref in refs:
+            try:
+                results.extend(lookup(conn, ref))
+            except ParseError as e:
+                print(f"error: {e}", file=sys.stderr)
+                return 2
+        reference_label = build_reference_label(results, "; ".join(refs))
+
+    if ns.present and results:
+        status, _ = _post("/verse", {"reference": reference_label, "verses": results})
+        if status == 0:
+            return 2
+
+    if ns.json:
+        print(json.dumps({"mode": mode, "results": results}, ensure_ascii=False))
+    elif ns.present:
+        # Concise confirmation, the operator just wants to know what's live.
+        first = results[0] if results else None
+        if first:
+            print(f"projected: {reference_label}  ({len(results)} verse{'s' if len(results)!=1 else ''})")
+            print(f"  showing 1/{len(results)}: {first['book']} {first['chapter']}:{first['verse']}")
+    else:
+        out = format_results(results, plain=ns.plain)
+        if out:
+            print(out)
+    return 0 if results else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bible search (headless)</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel-2: #1f2630;
+    --border: #2a313c;
+    --text: #e6edf3;
+    --muted: #8b96a3;
+    --accent: #4a9eff;
+    --ok: #2fc16b;
+    --danger: #d05050;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header .title { font-weight: 600; letter-spacing: 0.02em; }
+  header .badge {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+  main { padding: 18px; max-width: 880px; margin: 0 auto; }
+  .row { display: flex; gap: 10px; align-items: stretch; }
+  textarea {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 17px;
+    font-family: inherit;
+    line-height: 1.45;
+    resize: vertical;
+    min-height: 84px;
+    outline: none;
+  }
+  textarea:focus { border-color: var(--accent); }
+  button#go {
+    appearance: none;
+    border: 1px solid #1d4d8a;
+    background: linear-gradient(180deg, #2774d6, #1f5fb0);
+    color: white;
+    padding: 0 22px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 10px;
+    cursor: pointer;
+    min-width: 120px;
+  }
+  button#go:disabled { opacity: 0.55; cursor: progress; }
+  button#go:active:not(:disabled) { transform: scale(0.98); }
+
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .hint kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+
+  .opts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    user-select: none;
+  }
+  .opts label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 120ms, color 120ms, border-color 120ms;
+  }
+  .opts label:hover { color: var(--text); }
+  .opts input[type=checkbox] {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    cursor: pointer;
+    position: relative;
+  }
+  .opts input[type=checkbox]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .opts input[type=checkbox]:checked::after {
+    content: "";
+    position: absolute;
+    left: 3px; top: 0;
+    width: 4px; height: 8px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .opts label.on {
+    background: rgba(74,158,255,0.10);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .result {
+    margin-top: 18px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    min-height: 100px;
+    font-size: 16px;
+    line-height: 1.55;
+    color: #d8e0e8;
+  }
+  .result.empty { color: var(--muted); font-style: italic; }
+  .result.error { border-color: #4a2a2a; background: #2b1c1c; color: #ffd0d0; white-space: pre-wrap; }
+
+  .result .ref {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 14px;
+    letter-spacing: 0.01em;
+  }
+  .result ol.verses {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .result ol.verses li {
+    padding: 6px 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+  }
+  .result ol.verses li:first-child { border-top: none; }
+  .result ol.verses .vnum {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    padding-top: 3px;
+    min-width: 56px;
+  }
+  .result ol.verses .vtxt { font-size: 17px; line-height: 1.5; }
+
+  .meta {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .meta .pill {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+  }
+  .meta .pill.ok { color: var(--ok); border-color: rgba(47,193,107,0.3); }
+  .meta .pill.bad { color: var(--danger); border-color: rgba(208,80,80,0.3); }
+  .meta .pill.fast { color: var(--ok); }
+  .meta .pill.ai { color: var(--accent); border-color: rgba(74,158,255,0.3); }
+
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--muted);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 800ms linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  details.stderr {
+    margin-top: 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  details.stderr pre {
+    white-space: pre-wrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    margin: 8px 0 0;
+  }
+
+  footer {
+    margin: 24px auto 36px;
+    max-width: 880px;
+    padding: 0 18px;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">Bible search <span style="color:var(--muted);font-weight:400">— RVR1960</span></div>
+  <div class="badge">regex → haiku</div>
+</header>
+<main>
+  <div class="row">
+    <textarea id="q" placeholder="Juan 3:16  ·  dame Juan uno del uno al diez  ·  fe sin obras  ·  good shepherd" autofocus></textarea>
+    <button id="go">Search</button>
+  </div>
+  <div class="hint">
+    <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> to submit. Clean refs resolve instantly; dictation / topic searches use Haiku (~1s).
+  </div>
+  <div class="opts">
+    <label id="projLabel" for="proj">
+      <input type="checkbox" id="proj">
+      <span>Project to vMix</span>
+    </label>
+  </div>
+
+  <div class="result empty" id="result">Results will appear here.</div>
+  <div class="meta" id="meta" hidden></div>
+</main>
+<footer>
+  Engine: <a href="/state">/state</a> · Projection: <a href="/present">/present</a> · Operator: <a href="/control">/control</a>
+</footer>
+
+<script>
+(() => {
+  const $q = document.getElementById("q");
+  const $go = document.getElementById("go");
+  const $result = document.getElementById("result");
+  const $meta = document.getElementById("meta");
+  const $proj = document.getElementById("proj");
+  const $projLabel = document.getElementById("projLabel");
+
+  // Remember the user's projection preference across reloads.
+  $proj.checked = localStorage.getItem("project") === "1";
+  $projLabel.classList.toggle("on", $proj.checked);
+  $proj.addEventListener("change", () => {
+    localStorage.setItem("project", $proj.checked ? "1" : "0");
+    $projLabel.classList.toggle("on", $proj.checked);
+  });
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  function renderResult(data) {
+    if (!data.ok || !data.verses || !data.verses.length) {
+      $result.classList.add("empty");
+      const note = data.note || (data.query
+        ? `No hits for "${data.query}".`
+        : `No match for "${$q.value.trim()}".`);
+      $result.textContent = note;
+      return;
+    }
+    $result.classList.remove("empty");
+    const items = data.verses.map((v) => `
+      <li>
+        <span class="vnum">${escapeHtml(v.book)} ${v.chapter}:${v.verse}</span>
+        <span class="vtxt">${escapeHtml(v.text)}</span>
+      </li>`).join("");
+    $result.innerHTML = `
+      <div class="ref">${escapeHtml(data.ref)}</div>
+      <ol class="verses">${items}</ol>
+    `;
+  }
+
+  function renderMeta(data, wallSec) {
+    $meta.hidden = false;
+    const pathPill = data.path === "regex"
+      ? `<span class="pill fast">regex · ${data.elapsed_ms}ms</span>`
+      : `<span class="pill ai">haiku · ${data.elapsed_ms}ms (parse ${data.parse_ms}ms)</span>`;
+    const countPill = data.count
+      ? `<span class="pill">${data.count} verse${data.count === 1 ? "" : "s"}</span>`
+      : "";
+    const projPill = data.projected
+      ? `<span class="pill ok">projected ↗ — advance with /control</span>`
+      : "";
+    $meta.innerHTML = pathPill + countPill + projPill;
+  }
+
+  async function run() {
+    const prompt = $q.value.trim();
+    if (!prompt) { $q.focus(); return; }
+    $go.disabled = true;
+    $result.classList.remove("error", "empty");
+    $result.innerHTML = '<span class="spinner"></span> Looking up…';
+    $meta.hidden = true;
+    const t0 = performance.now();
+    try {
+      const r = await fetch("/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, project: $proj.checked }),
+      });
+      const data = await r.json();
+      const wallSec = (performance.now() - t0) / 1000;
+      if (!r.ok) {
+        $result.classList.add("error");
+        $result.textContent = data.detail || `HTTP ${r.status}`;
+        return;
+      }
+      renderResult(data);
+      renderMeta(data, wallSec);
+    } catch (e) {
+      $result.classList.add("error");
+      $result.textContent = "Network error: " + e.message;
+    } finally {
+      $go.disabled = false;
+    }
+  }
+
+  $go.addEventListener("click", run);
+  $q.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      run();
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>vMix Bible — present</title>
+<style>
+  :root {
+    --fade: 280ms;
+    --text-color: #ffffff;
+    --ref-color: #f0e8c8;
+    --shadow: 0 4px 18px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.95);
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 1920px;
+    height: 1080px;
+    background: transparent;
+    overflow: hidden;
+    font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    color: var(--text-color);
+  }
+  #stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0 8rem;
+    box-sizing: border-box;
+    text-align: center;
+  }
+  .verse-text {
+    font-size: 72px;
+    line-height: 1.25;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    max-width: 1600px;
+    text-shadow: var(--shadow);
+    transition: opacity var(--fade) ease, transform var(--fade) ease;
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  .verse-text.shown {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reference {
+    margin-top: 2.5rem;
+    font-size: 40px;
+    font-weight: 500;
+    font-style: italic;
+    color: var(--ref-color);
+    text-shadow: var(--shadow);
+    transition: opacity var(--fade) ease;
+    opacity: 0;
+  }
+  .reference.shown {
+    opacity: 1;
+  }
+  /* Tiny status pip for debugging — toggled off in production via ?nostatus=1 */
+  #status {
+    position: absolute;
+    bottom: 14px;
+    right: 18px;
+    font-size: 12px;
+    opacity: 0.35;
+    color: #fff;
+    text-shadow: 0 1px 2px #000;
+    pointer-events: none;
+  }
+  body.nostatus #status { display: none; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div class="verse-text" id="text"></div>
+    <div class="reference" id="ref"></div>
+  </div>
+  <div id="status">offline</div>
+
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get("nostatus") === "1") document.body.classList.add("nostatus");
+
+  const $text = document.getElementById("text");
+  const $ref  = document.getElementById("ref");
+  const $status = document.getElementById("status");
+
+  let lastRendered = null; // signature of last shown content
+
+  function sig(state) {
+    if (!state || !state.current) return "::empty";
+    const c = state.current;
+    return `${c.book}|${c.chapter}|${c.verse}|${state.index}/${state.total}`;
+  }
+
+  function refLabel(state) {
+    const c = state.current;
+    if (!c) return "";
+    return `${c.book} ${c.chapter}:${c.verse}`;
+  }
+
+  function render(state) {
+    const s = sig(state);
+    if (s === lastRendered) return;
+    lastRendered = s;
+
+    // Fade out
+    $text.classList.remove("shown");
+    $ref.classList.remove("shown");
+
+    setTimeout(() => {
+      if (!state.current) {
+        $text.textContent = "";
+        $ref.textContent = "";
+        return;
+      }
+      $text.textContent = state.current.text;
+      $ref.textContent  = refLabel(state);
+      // Force reflow then fade in
+      void $text.offsetWidth;
+      $text.classList.add("shown");
+      $ref.classList.add("shown");
+    }, 280); // match --fade
+  }
+
+  let ws = null;
+  let backoff = 250;
+  function connect() {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    ws = new WebSocket(`${proto}//${location.host}/live`);
+    ws.onopen = () => {
+      backoff = 250;
+      $status.textContent = "live";
+    };
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data && data.type === "state") render(data);
+      } catch (e) { /* ignore */ }
+    };
+    ws.onclose = () => {
+      $status.textContent = "reconnecting…";
+      setTimeout(connect, backoff);
+      backoff = Math.min(backoff * 2, 3000);
+    };
+    ws.onerror = () => { try { ws.close(); } catch {} };
+  }
+  connect();
+})();
+</script>
+</body>
+</html>

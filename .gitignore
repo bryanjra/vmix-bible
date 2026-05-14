@@ -1,0 +1,26 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Per-user Claude Code state — never commit; auth lives at ~/.claude/.credentials.json
+# but THIS file can leak machine-specific paths in permission allowlists.
+.claude/settings.local.json
+.claude/.credentials.json
+.claude/sessions/
+.claude/history.jsonl
+
+# Env files that might hold secrets
+.env
+.env.local
+.env.*.local
+
+# Local-only logs
+/tmp/vmix-bible.log
+*.log
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Launch the vMix Bible engine (FastAPI + WebSocket).
+# vMix Web Browser Input target: http://127.0.0.1:8080/present
+# Operator control page:         http://127.0.0.1:8080/control
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PORT="${PORT:-8080}"
+HOST="${HOST:-127.0.0.1}"
+
+cd "$ROOT"
+
+if [[ ! -x .venv/bin/uvicorn ]]; then
+  echo "error: .venv missing — recreate with:" >&2
+  echo "  python3 -m venv .venv && .venv/bin/pip install 'fastapi>=0.115' 'uvicorn[standard]>=0.32'" >&2
+  exit 2
+fi
+
+echo "vMix Bible engine on http://${HOST}:${PORT}"
+echo "  present:  http://${HOST}:${PORT}/present"
+echo "  control:  http://${HOST}:${PORT}/control"
+exec .venv/bin/uvicorn server.app:app --host "$HOST" --port "$PORT" "$@"
