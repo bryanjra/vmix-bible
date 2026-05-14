@@ -10,6 +10,25 @@ advance one verse at a time from a phone.
 
 ---
 
+## TL;DR
+
+```bash
+git clone https://github.com/bryanjra/vmix-bible.git
+cd vmix-bible
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+claude login                       # or:  export ANTHROPIC_API_KEY=sk-ant-...
+./bin/serve                        # http://127.0.0.1:8080
+```
+
+Then in vMix: **Add → Input → Web Browser**, URL `http://<host>:8080/present`,
+1920×1080, **Transparency: ✔**. Search and project verses from
+`http://<host>:8080/search`; advance live from `http://<host>:8080/control`.
+
+Detailed walkthrough below.
+
+---
+
 ## Architecture
 
 ```
@@ -68,8 +87,8 @@ should work; on Windows use WSL.
 ### 1. Clone and install deps
 
 ```bash
-git clone <this repo> bible-api
-cd bible-api
+git clone https://github.com/bryanjra/vmix-bible.git
+cd vmix-bible
 
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
