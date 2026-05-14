@@ -121,6 +121,281 @@
     color: var(--muted);
   }
   .next-up .ref { color: var(--text); font-weight: 600; font-size: 14px; }
+
+  .listen-card,
+  .queue-card,
+  .config-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .panel-head .lbl {
+    color: var(--muted); font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .panel-head .lbl .state { color: var(--text); margin-left: 6px; font-weight: 600; }
+  .panel-head .lbl.live .state { color: var(--ok); }
+
+  .listen-toggle {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+  }
+  .listen-toggle.on { background: #0e3d23; border-color: #2a5a3a; color: #b9efcb; }
+  .listen-toggle:disabled { opacity: 0.4; cursor: not-allowed; }
+  .listen-toggle:active { transform: scale(0.98); }
+
+  .audio-cfg {
+    display: grid;
+    grid-template-columns: 1fr 96px;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .audio-cfg label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+  .audio-cfg select {
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .audio-cfg .model { grid-column: 1 / -1; }
+  .listener-status {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .listener-status.error { color: var(--danger); }
+
+  .suggestions {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  .suggestions > .label {
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+  .suggestion {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .suggestion:last-child { margin-bottom: 0; }
+  .suggestion .meta { min-width: 0; }
+  .suggestion .ref {
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .suggestion .src {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+  .suggestion .utt {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .suggestion button {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    font-size: 22px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 80ms ease;
+  }
+  .suggestion button.queue  { background: #1c2a3c; border-color: #335277; color: #c9deff; }
+  .suggestion button.play   { background: #0e3d23; border-color: #2a5a3a; color: #b9efcb; }
+  .suggestion button.reject { background: #3a1f1f; border-color: #5a2a2a; color: #f0c0c0; }
+  .suggestion button:active { transform: scale(0.96); }
+
+  /* Queue (Cola) */
+  .queue-card .panel-head .clear-q {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .queue-card .panel-head .clear-q:active { background: #2a313c; }
+  #queue-list { margin-top: 10px; }
+  .queue-card .empty {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    font-style: italic;
+  }
+  .q-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: background 100ms ease, transform 80ms ease;
+  }
+  .q-item:last-child { margin-bottom: 0; }
+  .q-item:active { transform: scale(0.99); }
+  .q-item.current {
+    border-color: #2a5a3a;
+    background: #122a1f;
+  }
+  .q-item .q-meta { min-width: 0; }
+  .q-item .q-ref {
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .q-item .q-sub {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  .q-item .q-src {
+    font-size: 10px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 4px;
+  }
+  .q-item .q-del {
+    appearance: none;
+    border: 1px solid #4a2a2a;
+    background: #2b1c1c;
+    color: #ffd0d0;
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    font-size: 18px; font-weight: 700;
+    cursor: pointer;
+  }
+  .q-item .q-del:active { background: #3a2424; }
+
+  /* Configuración */
+  .config-card details > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .config-card details > summary::-webkit-details-marker { display: none; }
+  .config-card details > summary::after {
+    content: "▾";
+    color: var(--muted);
+    transition: transform 120ms ease;
+  }
+  .config-card details[open] > summary::after { transform: rotate(180deg); }
+  .config-card .help {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 12px 0 8px;
+    line-height: 1.5;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 4px 4px 12px;
+    font-size: 13px;
+  }
+  .chip button {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    width: 24px; height: 24px;
+    border-radius: 999px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .chip button:hover { color: var(--danger); background: #2b1c1c; }
+  .chip-input {
+    width: 100%;
+    margin-top: 10px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+  }
 </style>
 </head>
 <body>
@@ -129,10 +404,49 @@
   <div class="conn dead" id="conn">offline</div>
 </header>
 <main>
+  <div class="listen-card">
+    <div class="panel-head">
+      <div class="lbl" id="listen-lbl">Escucha <span class="state" id="listen-state">OFF</span></div>
+      <button class="listen-toggle" id="listen-toggle">Activar</button>
+    </div>
+    <div class="audio-cfg">
+      <div>
+        <label for="cfg-device">Entrada</label>
+        <select id="cfg-device"></select>
+      </div>
+      <div>
+        <label for="cfg-channel">Canal</label>
+        <select id="cfg-channel"></select>
+      </div>
+      <div class="model">
+        <label for="cfg-model">Modelo</label>
+        <select id="cfg-model">
+          <option value="small">small · rápido</option>
+          <option value="medium">medium · más preciso</option>
+        </select>
+      </div>
+    </div>
+    <div class="listener-status" id="listener-status"></div>
+  </div>
+
+  <div class="suggestions" id="suggestions" style="display:none">
+    <div class="label">Sugerencias</div>
+    <div id="suggestion-list"></div>
+  </div>
+
+  <div class="queue-card">
+    <div class="panel-head">
+      <div class="lbl">Cola <span class="state" id="queue-count">0</span></div>
+      <button class="clear-q" id="queue-clear">Vaciar cola</button>
+    </div>
+    <div id="queue-list"></div>
+    <div class="empty" id="queue-empty">Sin lecturas en cola. Encola desde /search o acepta una sugerencia.</div>
+  </div>
+
   <div class="now empty" id="now">
-    <div class="label">Now showing</div>
-    <div class="ref" id="now-ref">— nothing —</div>
-    <div class="text" id="now-text">Push a verse from the CLI to begin.</div>
+    <div class="label">En vivo</div>
+    <div class="ref" id="now-ref">— sin proyección —</div>
+    <div class="text" id="now-text">Toca una lectura de la cola o activa la escucha para empezar.</div>
   </div>
 
   <div class="position" id="position">—</div>
@@ -140,13 +454,28 @@
   <div class="controls">
     <button id="prev">← Prev</button>
     <button id="next">Next →</button>
-    <button class="full danger" id="clear">Clear screen</button>
+    <button class="full danger" id="clear">Limpiar pantalla</button>
   </div>
 
   <div class="next-up" id="next-up" style="display:none">
-    <div class="label">Up next</div>
+    <div class="label">A continuación</div>
     <div class="ref" id="up-ref"></div>
     <div id="up-text"></div>
+  </div>
+
+  <div class="config-card">
+    <details>
+      <summary>Configuración ⚙</summary>
+      <div class="help">
+        Palabras clave que disparan la búsqueda de versículos cuando la escucha
+        está activa. Toca <b>×</b> para quitar; escribe abajo y presiona Enter
+        para agregar.
+      </div>
+      <div class="chips" id="cue-chips"></div>
+      <input class="chip-input" id="cue-input" type="text"
+             placeholder="agregar palabra clave (ej. abramos en, leamos)"
+             autocomplete="off" autocapitalize="off" />
+    </details>
   </div>
 </main>
 
@@ -160,17 +489,265 @@
   const $nextUp = document.getElementById("next-up");
   const $upRef = document.getElementById("up-ref");
   const $upText = document.getElementById("up-text");
+  const $listenLbl = document.getElementById("listen-lbl");
+  const $listenState = document.getElementById("listen-state");
+  const $listenToggle = document.getElementById("listen-toggle");
+  const $cfgDevice = document.getElementById("cfg-device");
+  const $cfgChannel = document.getElementById("cfg-channel");
+  const $cfgModel = document.getElementById("cfg-model");
+  const $listenerStatus = document.getElementById("listener-status");
+  const $suggestions = document.getElementById("suggestions");
+  const $suggestionList = document.getElementById("suggestion-list");
+  const $queueList = document.getElementById("queue-list");
+  const $queueEmpty = document.getElementById("queue-empty");
+  const $queueCount = document.getElementById("queue-count");
+  const $queueClear = document.getElementById("queue-clear");
+  const $cueChips = document.getElementById("cue-chips");
+  const $cueInput = document.getElementById("cue-input");
 
   let state = null;
   let ws = null;
   let backoff = 250;
+  let lastDevicesKey = "";
+
+  async function postJSON(path, body) {
+    const r = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      throw new Error(`${path} ${r.status}: ${txt}`);
+    }
+    return r.json();
+  }
+
+  function showError(msg) {
+    $listenerStatus.textContent = "✕ " + msg;
+    $listenerStatus.classList.add("error");
+  }
+
+  // ----- audio devices ---------------------------------------------------
+
+  function deviceByIndex(devices, idx) {
+    return devices.find((d) => d.index === idx);
+  }
+
+  function renderDevices(devices, cfg) {
+    const key = JSON.stringify(devices);
+    if (key !== lastDevicesKey) {
+      lastDevicesKey = key;
+      $cfgDevice.innerHTML = "";
+      if (devices.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "— sin entradas —";
+        $cfgDevice.appendChild(opt);
+        $cfgDevice.disabled = true;
+      } else {
+        $cfgDevice.disabled = false;
+        for (const d of devices) {
+          const opt = document.createElement("option");
+          opt.value = String(d.index);
+          opt.textContent = `${d.name} (${d.channels} ch)`;
+          $cfgDevice.appendChild(opt);
+        }
+      }
+    }
+    if (cfg.device !== null && cfg.device !== undefined) {
+      $cfgDevice.value = String(cfg.device);
+    }
+    const sel = cfg.device !== null ? deviceByIndex(devices, cfg.device) : null;
+    const maxCh = sel ? sel.channels : 1;
+    if ($cfgChannel.dataset.max !== String(maxCh)) {
+      $cfgChannel.dataset.max = String(maxCh);
+      $cfgChannel.innerHTML = "";
+      for (let i = 1; i <= maxCh; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = String(i);
+        $cfgChannel.appendChild(opt);
+      }
+    }
+    $cfgChannel.value = String(Math.min(cfg.channel || 1, maxCh));
+    $cfgModel.value = cfg.model || "small";
+  }
+
+  function renderListenerStatus(status, error) {
+    if (error) {
+      $listenerStatus.textContent = "✕ " + error;
+      $listenerStatus.classList.add("error");
+    } else if (status && status !== "stopped") {
+      $listenerStatus.textContent = status;
+      $listenerStatus.classList.remove("error");
+    } else {
+      $listenerStatus.textContent = "";
+      $listenerStatus.classList.remove("error");
+    }
+  }
+
+  function renderListen(on, deviceConfigured) {
+    $listenState.textContent = on ? "ON" : "OFF";
+    $listenLbl.classList.toggle("live", !!on);
+    $listenToggle.classList.toggle("on", !!on);
+    $listenToggle.textContent = on ? "Desactivar" : "Activar";
+    $listenToggle.disabled = !on && !deviceConfigured;
+  }
+
+  // ----- suggestions -----------------------------------------------------
+
+  function renderSuggestions(items) {
+    items = items || [];
+    if (items.length === 0) {
+      $suggestions.style.display = "none";
+      $suggestionList.innerHTML = "";
+      return;
+    }
+    $suggestions.style.display = "block";
+    $suggestionList.innerHTML = "";
+    for (const s of items) {
+      const row = document.createElement("div");
+      row.className = "suggestion";
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      const ref = document.createElement("div");
+      ref.className = "ref";
+      ref.textContent = s.ref;
+      if (s.source === "ai") {
+        const src = document.createElement("span");
+        src.className = "src";
+        src.textContent = "AI";
+        ref.appendChild(src);
+      }
+      const utt = document.createElement("div");
+      utt.className = "utt";
+      utt.textContent = `"${s.utterance}"`;
+      meta.appendChild(ref);
+      meta.appendChild(utt);
+
+      const qBtn = document.createElement("button");
+      qBtn.className = "queue";
+      qBtn.title = "Encolar";
+      qBtn.textContent = "➕";
+      qBtn.onclick = () => postJSON(`/suggest/${s.id}/queue`).catch((e) => showError(e.message));
+
+      const pBtn = document.createElement("button");
+      pBtn.className = "play";
+      pBtn.title = "Encolar y reproducir";
+      pBtn.textContent = "▶";
+      pBtn.onclick = () => postJSON(`/suggest/${s.id}/play`).catch((e) => showError(e.message));
+
+      const xBtn = document.createElement("button");
+      xBtn.className = "reject";
+      xBtn.title = "Descartar";
+      xBtn.textContent = "✕";
+      xBtn.onclick = () => postJSON(`/suggest/${s.id}/reject`).catch((e) => showError(e.message));
+
+      row.appendChild(meta);
+      row.appendChild(qBtn);
+      row.appendChild(pBtn);
+      row.appendChild(xBtn);
+      $suggestionList.appendChild(row);
+    }
+  }
+
+  // ----- queue -----------------------------------------------------------
+
+  function renderQueue(queue, currentItemId) {
+    queue = queue || [];
+    $queueCount.textContent = String(queue.length);
+    $queueEmpty.style.display = queue.length === 0 ? "block" : "none";
+    $queueList.innerHTML = "";
+    for (const it of queue) {
+      const row = document.createElement("div");
+      row.className = "q-item" + (it.id === currentItemId ? " current" : "");
+      row.onclick = (e) => {
+        if (e.target.classList.contains("q-del")) return;
+        postJSON(`/queue/${it.id}/play`).catch((err) => showError(err.message));
+      };
+
+      const meta = document.createElement("div");
+      meta.className = "q-meta";
+      const ref = document.createElement("div");
+      ref.className = "q-ref";
+      ref.textContent = it.ref;
+      if (it.source && it.source !== "manual" && it.source !== "search") {
+        const src = document.createElement("span");
+        src.className = "q-src";
+        src.textContent = it.source === "suggestion" ? "voz" : it.source;
+        ref.appendChild(src);
+      }
+      const sub = document.createElement("div");
+      sub.className = "q-sub";
+      sub.textContent = `${it.total_verses} versículo${it.total_verses === 1 ? "" : "s"}`;
+      if (it.id === currentItemId) sub.textContent += "  ·  en vivo";
+      meta.appendChild(ref);
+      meta.appendChild(sub);
+
+      const del = document.createElement("button");
+      del.className = "q-del";
+      del.title = "Quitar de la cola";
+      del.textContent = "×";
+      del.onclick = (e) => {
+        e.stopPropagation();
+        postJSON(`/queue/${it.id}/delete`).catch((err) => showError(err.message));
+      };
+
+      row.appendChild(meta);
+      row.appendChild(del);
+      $queueList.appendChild(row);
+    }
+  }
+
+  // ----- cue words -------------------------------------------------------
+
+  function renderCueWords(words) {
+    words = words || [];
+    $cueChips.innerHTML = "";
+    for (const w of words) {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.appendChild(document.createTextNode(w));
+      const x = document.createElement("button");
+      x.textContent = "×";
+      x.title = "Quitar";
+      x.onclick = () => {
+        const next = (state.cue_words || []).filter((x) => x !== w);
+        postJSON("/cue-words", { words: next }).catch((e) => showError(e.message));
+      };
+      chip.appendChild(x);
+      $cueChips.appendChild(chip);
+    }
+  }
+
+  $cueInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const v = $cueInput.value.trim();
+    if (!v) return;
+    const next = Array.from(new Set([...(state.cue_words || []), v]));
+    postJSON("/cue-words", { words: next })
+      .then(() => { $cueInput.value = ""; })
+      .catch((err) => showError(err.message));
+  });
+
+  // ----- main render -----------------------------------------------------
 
   function render(s) {
     state = s;
+    renderDevices(s.audio_devices || [], s.audio_config || {});
+    renderListenerStatus(s.listener_status, s.listener_error);
+    renderListen(s.listening, (s.audio_config || {}).device != null);
+    renderSuggestions(s.suggestions);
+    renderQueue(s.queue, s.current_item_id);
+    renderCueWords(s.cue_words);
+
     if (!s.current) {
       $now.classList.add("empty");
-      $nowRef.textContent = "— nothing —";
-      $nowText.textContent = "Push a verse from the CLI to begin.";
+      $nowRef.textContent = "— sin proyección —";
+      $nowText.textContent = "Toca una lectura de la cola o activa la escucha para empezar.";
       $position.textContent = "—";
       $nextUp.style.display = "none";
       return;
@@ -178,7 +755,7 @@
     $now.classList.remove("empty");
     $nowRef.textContent = `${s.current.book} ${s.current.chapter}:${s.current.verse}`;
     $nowText.textContent = s.current.text;
-    $position.textContent = `${s.index + 1} / ${s.total}` + (s.reference ? `  ·  ${s.reference}` : "");
+    $position.textContent = `${s.verse_index + 1} / ${s.total}` + (s.reference ? `  ·  ${s.reference}` : "");
     if (s.next) {
       $nextUp.style.display = "block";
       $upRef.textContent = `${s.next.book} ${s.next.chapter}:${s.next.verse}`;
@@ -188,6 +765,8 @@
     }
   }
 
+  // ----- ws + buttons ---------------------------------------------------
+
   function send(cmd) {
     if (ws && ws.readyState === 1) ws.send(cmd);
   }
@@ -195,11 +774,40 @@
   document.getElementById("next").onclick  = () => send("next");
   document.getElementById("prev").onclick  = () => send("prev");
   document.getElementById("clear").onclick = () => {
-    if (confirm("Clear the projection?")) send("clear");
+    if (confirm("¿Limpiar la pantalla? (la cola se mantiene)")) send("clear");
   };
+  $queueClear.onclick = () => {
+    if (confirm("¿Vaciar toda la cola?")) {
+      postJSON("/queue/clear").catch((e) => showError(e.message));
+    }
+  };
+
+  $listenToggle.onclick = async () => {
+    const next = !(state && state.listening);
+    try {
+      await postJSON("/listen", { on: next });
+    } catch (e) {
+      showError(e.message);
+    }
+  };
+
+  async function pushAudioConfig() {
+    const device = $cfgDevice.value === "" ? null : Number($cfgDevice.value);
+    const channel = Number($cfgChannel.value) || 1;
+    const model = $cfgModel.value || "small";
+    try {
+      await postJSON("/audio/config", { device, channel, model });
+    } catch (e) {
+      showError(e.message);
+    }
+  }
+  $cfgDevice.onchange  = pushAudioConfig;
+  $cfgChannel.onchange = pushAudioConfig;
+  $cfgModel.onchange   = pushAudioConfig;
 
   // Keyboard for laptop use
   document.addEventListener("keydown", (e) => {
+    if (e.target === $cueInput) return;
     if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); send("next"); }
     else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); send("prev"); }
     else if (e.key === "Escape") { e.preventDefault(); send("clear"); }

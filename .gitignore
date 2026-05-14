@@ -19,6 +19,9 @@ __pycache__/
 /tmp/vmix-bible.log
 *.log
 
+# Operator-local cue-word overrides for the agentic listener
+cue-words.json
+
 # Editor / OS noise
 .DS_Store
 .idea/

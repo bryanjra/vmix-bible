@@ -8,6 +8,11 @@ It exists so a media operator can say or type **"dame Juan uno del uno al
 diez"** mid-service, see the first verse on the projector instantly, and
 advance one verse at a time from a phone.
 
+The projection state is a **queue** of readings. Manual searches and accepted
+voice suggestions append to it; the operator can tap an item to project it,
+step verse-by-verse across the whole queue with Next/Prev, or delete entries
+they don't need.
+
 ---
 
 ## TL;DR
@@ -167,6 +172,133 @@ cp -r path/to/this/repo/.claude-skills/bible-rvr1960 ~/.claude/skills/
 `~/.claude/skills/bible-rvr1960/SKILL.md` on the original machine. The CLI
 runs fine without it.)
 
+### 6. Optional: voice-listening companion (agentic suggestions)
+
+The server can listen to the preacher's audio and propose verses in real
+time. Suggestions appear on `/control` in the **Sugerencias** panel; the
+operator taps **✓** to project or **✕** to dismiss. Nothing reaches the
+projector without explicit confirmation.
+
+The listener runs in-process — the audio device, channel, and whisper
+model are picked from the `/control` UI. One Python process, one
+`requirements.txt`, no extra daemon.
+
+#### Install (Windows, native PowerShell)
+
+The full server already includes the listener — installing
+`requirements.txt` pulls `faster-whisper`, `sounddevice`, and `numpy`
+alongside FastAPI. The `sounddevice` Windows wheel bundles PortAudio, so
+no separate system install is needed.
+
+```powershell
+git clone https://github.com/bryanjra/vmix-bible.git
+cd vmix-bible
+
+py -3 -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+
+# Optional: pre-cache the whisper model so first "Activar" tap is fast.
+.venv\Scripts\python -c "from faster_whisper import WhisperModel; WhisperModel('small')"
+#   small  ≈ 500 MB — real-time on a recent CPU, good Spanish accuracy
+#   medium ≈ 1.5 GB — ~1.5× CPU, noticeably cleaner book names + numbers
+```
+
+Start the server:
+
+```powershell
+.venv\Scripts\python -m uvicorn server.app:app --host 127.0.0.1 --port 8080
+```
+
+(`bin/serve` is bash and only works in WSL / POSIX shells. On native
+Windows use the `uvicorn` command above, or wrap it in a `.ps1`.)
+
+#### Using it during service
+
+1. Server running, `/control` open on the operator's phone or a tab.
+2. In the **Escucha** card at the top of `/control`:
+   - **Entrada** — pick the audio device. For a built-in mic this is
+     usually *Microphone Array (Realtek)* or similar. For a Behringer
+     audio interface (UMC1820, X-Air XR18, …), pick the device by name.
+   - **Canal** — for a multichannel interface, pick the specific channel
+     the preacher mic / aux send is on (1-based). For a normal mic, leave
+     it at `1`.
+   - **Modelo** — `small` (default) or `medium`. Change only if you've
+     pre-cached the larger model.
+3. Tap **Activar**. The status line shows `loading small…` while the
+   model warms up (a few seconds after the first time), then `listening`.
+4. As the preacher names references ("abramos en Juan tres dieciséis"),
+   suggestions appear in the **Sugerencias** panel. Each one has three
+   buttons:
+   - **➕** — append to the queue, don't project yet (lets you batch
+     several before deciding when to switch).
+   - **▶** — append to the queue *and* jump to it on the projector.
+   - **✕** — dismiss.
+5. The **Cola** panel below shows everything queued so far. Tap any item
+   to project it from verse 1; tap **×** to remove it; **Vaciar cola**
+   empties everything.
+6. **Next / Prev** step verse-by-verse and roll across the queue at item
+   boundaries — keep tapping Next to flow through the whole service.
+7. **Limpiar pantalla** stops projecting but keeps the queue intact, so
+   you can pick up the same reading later.
+8. Tap **Desactivar** to go fully manual — clears pending suggestions,
+   stops the audio stream, and ignores incoming utterances until
+   re-enabled.
+
+Changing **Entrada**, **Canal**, or **Modelo** while listening is ON
+restarts the stream with the new settings — useful for switching between a
+laptop mic and the Behringer mid-setup.
+
+#### Cue words
+
+Cue words are the local heuristic that decides whether a transcribed
+utterance is worth resolving (alongside digits and known book names). Edit
+them live from `/control` → **Configuración ⚙** — type a word and press
+Enter to add, tap **×** on a chip to remove. The list is normalized
+(lowercased, accents stripped, blanks dropped) and persisted to
+`cue-words.json` at the repo root (gitignored, so each install can tune
+to its own preacher).
+
+Defaults ship in `server/suggest.py::DEFAULT_CUE_WORDS`. If
+`cue-words.json` is absent, the defaults are used.
+
+#### Tuning
+
+| Knob | Where | Effect |
+|---|---|---|
+| Cue words | `/control` → **Configuración** | Words that trip the resolver |
+| `MIN_UTTERANCE_LEN` | `server/suggest.py` | Shorter strings skip resolution |
+| `DEDUP_SECONDS` | `server/suggest.py` | Same ref within this window is suppressed |
+| `PENDING_TTL` | `server/suggest.py` | Pending suggestions auto-expire |
+| `HAIKU_GATE_MAX_PER_MIN` | `server/suggest.py` | Hard ceiling on Haiku calls |
+| `SILENCE_RMS` | `server/listener.py` | VAD threshold (raise if ambient noise leaks in) |
+
+If false positives are high, trim cue words from `/control` or lower
+`HAIKU_GATE_MAX_PER_MIN`. If recall is low, pick `medium` in the UI.
+
+#### Troubleshooting
+
+**No devices in the **Entrada** dropdown** — Windows hides inputs that
+are disabled or have no permission. Open *Settings → Privacy & security
+→ Microphone* and enable desktop-app access. For the Behringer, install
+the ASIO / WDM driver and confirm the device appears in *Sound settings
+→ Input*. Refresh `/control`.
+
+**Status shows `error: missing audio deps`** — `requirements.txt` didn't
+install the audio wheels. Re-run `.venv\Scripts\pip install -r requirements.txt`
+and restart the server.
+
+**Status shows `error: audio stream failed`** — usually the device is in
+use by another app or the picked channel exceeds the device's input
+count. Close the other app or pick a lower channel.
+
+**Listener catches music / ambient noise** — raise `SILENCE_RMS` in
+`server/listener.py` (0.012 default), or route a dedicated aux send
+instead of the full mix.
+
+**Model download is slow** — `faster-whisper` pulls from HuggingFace
+the first time `Activar` is tapped (~500 MB for `small`, ~1.5 GB for
+`medium`). Pre-cache as shown above.
+
 ---
 
 ## Endpoints
@@ -174,16 +306,29 @@ runs fine without it.)
 | Method | Path | Purpose |
 |---|---|---|
 | GET  | `/present` | Projection page (vMix Web Browser Input target) |
-| GET  | `/control` | Operator page (Next/Prev/Clear, keyboard arrows) |
+| GET  | `/control` | Operator page (queue, Next/Prev/Clear, listener, cue-words) |
 | GET  | `/search`  | Search box that takes Spanish/English/dictation |
-| GET  | `/state`   | Current playlist state (debugging) |
+| GET  | `/state`   | Current state (debugging) |
 | WS   | `/live`    | Real-time state stream; also accepts `next`/`prev`/`clear`/`goto:N` |
-| POST | `/verse`   | Set the playlist explicitly: `{reference, verses[]}` |
-| POST | `/next`    | Advance one verse |
-| POST | `/prev`    | Back one verse |
-| POST | `/goto/{n}` | Jump to 0-based index |
-| POST | `/clear`   | Blank the projection |
-| POST | `/search`  | Smart router: `{prompt, project}` → `{verses[], ref, path, elapsed_ms, ...}` |
+| POST | `/verse`   | CLI back-compat: replace the queue with one item and play it (`{reference, verses[]}`) |
+| POST | `/next`    | Advance one verse — rolls into the next queue item at the boundary |
+| POST | `/prev`    | Back one verse — rolls into the previous queue item at the boundary |
+| POST | `/goto/{n}` | Jump to verse `n` (0-based) within the current item |
+| POST | `/clear`   | Stop projecting (keeps the queue intact) |
+| POST | `/queue`   | Append: `{reference?, verses[], source?, play?}` — `play=true` also jumps to it |
+| POST | `/queue/{id}/play`   | Jump to that queue item (verse_index = 0) |
+| POST | `/queue/{id}/delete` | Remove from queue (auto-advance if it was current) |
+| POST | `/queue/clear`       | Empty the queue |
+| POST | `/search`  | Smart router: `{prompt, project, play}` → `{verses[], ref, path, elapsed_ms, ...}`. `project=true` appends to queue; `play` controls auto-jump. |
+| POST | `/listen`  | Toggle the agentic listener: `{on: bool}`. ON loads whisper and opens the audio stream (non-blocking; status streams over `/live`). OFF stops the stream and clears pending. |
+| GET  | `/audio/devices` | List input devices PortAudio can see |
+| POST | `/audio/config` | Pick the input: `{device: int, channel: int, model: str}` — restarts the stream if already listening |
+| POST | `/suggest` | External STT entry point: `{utterance, ts?}` |
+| POST | `/suggest/{id}/queue` | Accept a suggestion to the queue only |
+| POST | `/suggest/{id}/play`  | Accept a suggestion and jump to it |
+| POST | `/suggest/{id}/reject` | Dismiss a suggestion |
+| GET  | `/cue-words` | List the cue words used by `looks_versey` |
+| POST | `/cue-words` | Replace the cue-word list (`{words: [...]}`); persists to `cue-words.json` |
 
 ---
 
@@ -238,8 +383,11 @@ bible-api/
 ├── server/
 │   ├── __init__.py
 │   ├── app.py                   ← FastAPI: /present, /control, /search, /verse,
-│   │                              /next, /prev, /goto, /clear, WS /live
+│   │                              /next, /prev, /goto, /clear, WS /live,
+│   │                              /listen, /suggest, /audio/*
 │   ├── parser.py                ← Haiku-backed Spanish dictation → reference parser
+│   ├── suggest.py               ← cue-word heuristic + Haiku rate gate for listener
+│   ├── listener.py              ← in-process audio capture + faster-whisper STT
 │   └── static/
 │       ├── present.html         ← 1920×1080 transparent projection page (WS auto-reconnect)
 │       ├── control.html         ← operator UI (touch + keyboard)
@@ -336,6 +484,9 @@ add a reverse proxy with basic auth if you don't trust the segment.
 | `fastapi` | HTTP + WebSocket server | `>=0.115` |
 | `uvicorn[standard]` | ASGI runtime | `>=0.32` |
 | `anthropic` | Claude API client (OAuth or API key) | `>=0.40` |
+| `faster-whisper` | In-process STT for the agentic listener | `>=1.0` |
+| `sounddevice` | PortAudio bindings — input device + channel selection | `>=0.4.6` |
+| `numpy` | Audio buffer math for VAD segmentation | `>=1.24` |
 
 Python stdlib only for the CLI (`bin/verse`) — no external deps, by design,
 so the operator can rely on it even if the venv is broken.

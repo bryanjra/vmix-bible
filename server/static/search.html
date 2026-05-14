@@ -84,55 +84,29 @@
     font-size: 11px;
   }
 
-  .opts {
+  .actions {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 10px;
-    user-select: none;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
   }
-  .opts label {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 12px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    color: var(--muted);
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 120ms, color 120ms, border-color 120ms;
-  }
-  .opts label:hover { color: var(--text); }
-  .opts input[type=checkbox] {
+  .actions button {
     appearance: none;
-    width: 14px;
-    height: 14px;
     border: 1px solid var(--border);
-    border-radius: 3px;
-    background: var(--bg);
-    cursor: pointer;
-    position: relative;
-  }
-  .opts input[type=checkbox]:checked {
-    background: var(--accent);
-    border-color: var(--accent);
-  }
-  .opts input[type=checkbox]:checked::after {
-    content: "";
-    position: absolute;
-    left: 3px; top: 0;
-    width: 4px; height: 8px;
-    border: solid white;
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
-  }
-  .opts label.on {
-    background: rgba(74,158,255,0.10);
-    border-color: var(--accent);
+    background: var(--panel);
     color: var(--text);
+    padding: 11px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 80ms ease, background 120ms ease;
   }
+  .actions button:active:not(:disabled) { transform: scale(0.98); }
+  .actions button.queue { background: #1c2a3c; border-color: #335277; color: #c9deff; }
+  .actions button.play  { background: #0e3d23; border-color: #2a5a3a; color: #b9efcb; }
+  .actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .actions .done { color: var(--ok); font-size: 13px; align-self: center; }
 
   .result {
     margin-top: 18px;
@@ -247,14 +221,13 @@
   <div class="hint">
     <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> to submit. Clean refs resolve instantly; dictation / topic searches use Haiku (~1s).
   </div>
-  <div class="opts">
-    <label id="projLabel" for="proj">
-      <input type="checkbox" id="proj">
-      <span>Project to vMix</span>
-    </label>
-  </div>
 
   <div class="result empty" id="result">Results will appear here.</div>
+  <div class="actions" id="actions" hidden>
+    <button class="queue" id="enqueue">Encolar</button>
+    <button class="play"  id="enqueue-play">Encolar y reproducir</button>
+    <span class="done" id="action-done" hidden></span>
+  </div>
   <div class="meta" id="meta" hidden></div>
 </main>
 <footer>
@@ -267,16 +240,49 @@
   const $go = document.getElementById("go");
   const $result = document.getElementById("result");
   const $meta = document.getElementById("meta");
-  const $proj = document.getElementById("proj");
-  const $projLabel = document.getElementById("projLabel");
+  const $actions = document.getElementById("actions");
+  const $enqueue = document.getElementById("enqueue");
+  const $enqueuePlay = document.getElementById("enqueue-play");
+  const $done = document.getElementById("action-done");
 
-  // Remember the user's projection preference across reloads.
-  $proj.checked = localStorage.getItem("project") === "1";
-  $projLabel.classList.toggle("on", $proj.checked);
-  $proj.addEventListener("change", () => {
-    localStorage.setItem("project", $proj.checked ? "1" : "0");
-    $projLabel.classList.toggle("on", $proj.checked);
-  });
+  let lastResult = null;   // last successful /search response
+
+  function hideActions() {
+    $actions.hidden = true;
+    $done.hidden = true;
+    $done.textContent = "";
+    $enqueue.disabled = false;
+    $enqueuePlay.disabled = false;
+  }
+
+  async function postQueue(play) {
+    if (!lastResult || !lastResult.verses || !lastResult.verses.length) return;
+    $enqueue.disabled = true;
+    $enqueuePlay.disabled = true;
+    try {
+      const r = await fetch("/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference: lastResult.ref,
+          verses: lastResult.verses,
+          source: "search",
+          play: !!play,
+        }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+      $done.hidden = false;
+      $done.textContent = play ? "✓ encolado y reproduciendo" : "✓ encolado";
+    } catch (e) {
+      $done.hidden = false;
+      $done.textContent = "✕ " + e.message;
+      $enqueue.disabled = false;
+      $enqueuePlay.disabled = false;
+    }
+  }
+
+  $enqueue.addEventListener("click", () => postQueue(false));
+  $enqueuePlay.addEventListener("click", () => postQueue(true));
 
   function escapeHtml(s) {
     return s.replace(/[&<>"']/g, (c) => ({
@@ -313,10 +319,7 @@
     const countPill = data.count
       ? `<span class="pill">${data.count} verse${data.count === 1 ? "" : "s"}</span>`
       : "";
-    const projPill = data.projected
-      ? `<span class="pill ok">projected ↗ — advance with /control</span>`
-      : "";
-    $meta.innerHTML = pathPill + countPill + projPill;
+    $meta.innerHTML = pathPill + countPill;
   }
 
   async function run() {
@@ -326,12 +329,14 @@
     $result.classList.remove("error", "empty");
     $result.innerHTML = '<span class="spinner"></span> Looking up…';
     $meta.hidden = true;
+    hideActions();
+    lastResult = null;
     const t0 = performance.now();
     try {
       const r = await fetch("/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, project: $proj.checked }),
+        body: JSON.stringify({ prompt, project: false }),
       });
       const data = await r.json();
       const wallSec = (performance.now() - t0) / 1000;
@@ -342,6 +347,10 @@
       }
       renderResult(data);
       renderMeta(data, wallSec);
+      if (data.ok && data.verses && data.verses.length) {
+        lastResult = data;
+        $actions.hidden = false;
+      }
     } catch (e) {
       $result.classList.add("error");
       $result.textContent = "Network error: " + e.message;
